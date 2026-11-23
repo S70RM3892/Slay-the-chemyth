@@ -17,7 +17,8 @@ import { buildDb, cardDef as dbCardDef, hasKeyword, isUpgradable } from './data.
 import { createBrowserStorage, loadMeta, loadRun, saveMeta, saveRun, clearRun } from './storage.js';
 import { createMeta, notebookList, reactionList, weaknessReport } from './meta.js';
 import { bedtimeWarning, isBedtime, BEDTIME_MESSAGE } from './bedtime.js';
-import { parseNumericAnswer, judgeNumeric } from './quiz.js';
+import { parseNumericAnswer, judgeNumeric, judgePending, correctAnswerText } from './quiz.js';
+import { recordAnswer, recordReaction } from './meta.js';
 import {
   activePhRules, canPlayCard, displayTags, effectiveCost, endTurn, instDef, intentPreview, isCombatActive,
   livingEnemies, playCard,
@@ -51,7 +52,7 @@ const ACTIONS = {
   usePotion: (G, slot, target) => R.usePotion(G, slot, target),
   discardPotion: (G, slot) => R.discardPotion(G, slot),
   // pending
-  answerQuiz: (G, answer) => R.answerQuiz(G, answer),
+  answerQuiz: (G, answer, opts) => R.answerQuiz(G, answer, opts),
   continueQuiz: (G) => R.continueQuiz(G),
   selectCards: (G, uids) => R.selectCards(G, uids),
   cancelSelection: (G) => R.cancelSelection(G),
@@ -113,8 +114,10 @@ export function createGame({ data = {}, storage, now, autosave = true } = {}) {
     const c = G.run?.combat;
     if (c) for (const e of c.enemies) if (e.alive && e.intent) e.intent.preview = intentPreview(G, e);
     if (autosave && store) {
-      if (G.run && !G.run.result) saveRun(store, G.run);
-      else if (G.run && G.run.result) clearRun(store);
+      if (!G.mirror) {
+        if (G.run && !G.run.result) saveRun(store, G.run);
+        else if (G.run && G.run.result) clearRun(store);
+      }
       saveMeta(store, G.meta);
     }
   }
@@ -165,7 +168,35 @@ export function createGame({ data = {}, storage, now, autosave = true } = {}) {
       return { ok: true, error: null, events: G.events };
     },
     /** Drop the in-memory run without touching stats (e.g. after the result screen). */
-    closeRun() { G.run = null; if (store) clearRun(store); },
+    closeRun() { const m = G.mirror; G.run = null; G.mirror = false; if (store && !m) clearRun(store); },
+
+    // ---- co-op support (see src/net/coop.js) ----
+    /** true while this instance only mirrors a host's run (never saved locally). */
+    get isMirror() { return !!G.mirror; },
+    /** Guest: replace the run with the host's authoritative state (or null to leave). Does not touch the local save. */
+    setMirror(run) { G.run = run || null; G.mirror = !!run; },
+    /** Judge an answer against the pending quiz without consuming it. */
+    judgeAnswer(answer) {
+      const p = G.run?.pending;
+      const q = p && p.kind === 'quiz' ? db.questions.get(p.questionId) : null;
+      if (!q) return null;
+      const j = judgePending(q, p, answer);
+      return { correct: j.correct, parsed: j.parsed, correctDisplay: j.correctDisplay, correctAnswerText: correctAnswerText(q) };
+    },
+    /** Record a personal quiz result in this player's own notebook/stats (guest side). */
+    recordQuizAnswer(questionId, correct) {
+      const q = db.questions.get(questionId);
+      if (!q) return null;
+      const nb = recordAnswer(G.meta, q, !!correct, G.now());
+      if (store) saveMeta(store, G.meta);
+      return nb;
+    },
+    /** Record a reaction event in this player's own 反応ノート (guest side). */
+    recordReactionEvent(ev) {
+      if (!ev || !ev.cardId) return;
+      recordReaction(G.meta, ev.cardId, ev.index ?? 0, { equation: ev.equation, explain: ev.explain }, G.now());
+      if (store) saveMeta(store, G.meta);
+    },
 
     // ---- actions ----
     chooseNode: (id) => perform('chooseNode', [id]),
@@ -173,7 +204,7 @@ export function createGame({ data = {}, storage, now, autosave = true } = {}) {
     endTurn: () => perform('endTurn', []),
     usePotion: (slot, target) => perform('usePotion', [slot, target]),
     discardPotion: (slot) => perform('discardPotion', [slot]),
-    answerQuiz: (answer) => perform('answerQuiz', [answer]),
+    answerQuiz: (answer, opts) => perform('answerQuiz', [answer, opts]),
     continueQuiz: () => perform('continueQuiz', []),
     selectCards: (uids) => perform('selectCards', [uids]),
     cancelSelection: () => perform('cancelSelection', []),

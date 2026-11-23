@@ -409,7 +409,11 @@ export function cancelSelection(G) {
   return null;
 }
 
-export function answerQuiz(G, answer) {
+/**
+ * @param {object} [opts] co-op only: { teamCorrect?:boolean (overrides the game outcome),
+ *   personalCorrect?:boolean (what is recorded in this player's own notebook/stats), team?:[{name, answerText, correct}] }
+ */
+export function answerQuiz(G, answer, opts = {}) {
   const run = G.run;
   const p = run.pending;
   if (!p || p.kind !== 'quiz') return '出題中ではない';
@@ -421,7 +425,9 @@ export function answerQuiz(G, answer) {
     return null;
   }
   const j = judgePending(q, p, answer);
-  const nb = recordAnswer(G.meta, q, j.correct, G.now());
+  const personal = typeof opts.personalCorrect === 'boolean' ? opts.personalCorrect : j.correct;
+  if (typeof opts.teamCorrect === 'boolean') j.correct = opts.teamCorrect;
+  const nb = recordAnswer(G.meta, q, personal, G.now());
   run.quizLog.push({ id: q.id, field: q.field, topic: q.topic, level: q.level, correct: j.correct });
   if (j.correct) run.stats.correct++; else run.stats.wrong++;
   run.lastQuiz = { questionId: q.id, correct: j.correct };
@@ -443,6 +449,8 @@ export function answerQuiz(G, answer) {
     graduated: nb.graduated,
     streak: nb.streak,
     misconceptionAdded,
+    team: Array.isArray(opts.team) ? opts.team : null,
+    personalCorrect: personal,
   };
   emit(G, { type: 'quizResult', questionId: q.id, correct: j.correct, msg: j.correct ? '正解！' : '不正解……' });
   return null;
