@@ -1,6 +1,6 @@
 // Act map generation: 8 rows, 2-4 nodes per row, planar DAG from bottom (row 0)
 // to top (row 7), then the boss. Row 0 = battle, row 7 = rest, elite only from
-// row index 2 (= 3段目). The final act (5) is a single pre-boss row (rest/shop).
+// row index 2 (= 3段目). The final act (5) is a fixed 4-row review gauntlet.
 
 import { FINAL_ACT, MAP_ROWS } from './constants.js';
 import { randInt, random, weightedPick, pick } from './rng.js';
@@ -18,14 +18,11 @@ function nodeId(r, c) { return r + '-' + c; }
 
 export function generateMap(holder, act) {
   if (act >= FINAL_ACT) {
-    return {
-      act,
-      rows: [[
-        { id: nodeId(0, 0), row: 0, col: 0, type: 'rest', next: [] },
-        { id: nodeId(0, 1), row: 0, col: 1, type: 'shop', next: [] },
-      ]],
-      boss: { id: 'boss', type: 'boss' },
-    };
+    // 二次試験当日: a short review gauntlet, then the final boss
+    const layout = [['battle', 'battle'], ['event', 'shop', 'battle'], ['elite', 'battle'], ['rest', 'rest']];
+    const rows = layout.map((types, r) => types.map((type, c) => ({ id: nodeId(r, c), row: r, col: c, type, next: [] })));
+    for (let r = 0; r < rows.length - 1; r++) connectRows(holder, rows[r], rows[r + 1]);
+    return { act, rows, boss: { id: 'boss', type: 'boss' } };
   }
   const rows = [];
   for (let r = 0; r < MAP_ROWS; r++) {
@@ -38,6 +35,8 @@ export function generateMap(holder, act) {
       else type = weightedPick(holder, ROW_WEIGHTS(r), (x) => x.w).t;
       row.push({ id: nodeId(r, c), row: r, col: c, type, next: [] });
     }
+    // never force an elite: a row made only of elites keeps one battle
+    if (row.length > 1 && row.every((x) => x.type === 'elite')) row[randInt(holder, 0, row.length - 1)].type = 'battle';
     rows.push(row);
   }
   // guarantee at least one shop and one elite in the middle rows

@@ -127,6 +127,7 @@ export function createGame({ data = {}, storage, now, autosave = true } = {}) {
     let error = null;
     try {
       error = fn(G, ...args) || null;
+      if (G.run && !G.run.pending && G.run.queue.length) runQueue(G);
     } catch (err) {
       error = '[engine] ' + (err && err.message);
       if (G.run) recordError(G, err);

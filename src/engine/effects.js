@@ -39,6 +39,8 @@ export function runQueue(G) {
     if (++steps > MAX_QUEUE_STEPS) {
       recordError(G, new Error('effect loop guard tripped (possible infinite trigger loop)'));
       G.run.queue = [];
+      // recover to a playable state instead of soft-locking
+      if (isCombatActive(G) && G.run.combat.phase === 'enemy') G.run.combat.phase = 'player';
       break;
     }
     const frame = G.run.queue[G.run.queue.length - 1];

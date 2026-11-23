@@ -595,7 +595,12 @@ export function eventDone(G, index) {
 export function leaveEvent(G) {
   const run = G.run;
   if (run.screen !== 'event') return 'イベント画面ではない';
-  if (run.event && run.event.phase !== 'result') return '選択肢を選んでください';
+  if (run.event && run.event.phase === 'resolving' && (run.pending || run.queue.length)) return '処理中';
+  if (run.event && run.event.phase === 'choose') {
+    const ev = G.db.eventMap.get(run.event.id);
+    const any = (ev?.choices || []).some((_, i) => eventChoiceStatus(G, i).ok);
+    if (any) return '選択肢を選んでください';
+  }
   if (run.pending || run.queue.length) return '処理中';
   returnToMap(G);
   return null;
