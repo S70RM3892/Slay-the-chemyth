@@ -12,6 +12,9 @@ import { mapView } from './views/map.js';
 import { combatView, powerInfo } from './views/combat.js';
 import { rewardView, eventView, restView, shopView, treasureView, resultView } from './views/nodes.js';
 import { codexView, weaknessView } from './views/codex.js';
+import { coopView, coopBar, coopQuizStatus } from './views/coop.js';
+import { createCoop } from '../net/coop.js';
+import { createCoopChat } from './coopchat.js';
 
 const PREFS_KEY = 'chemyth.ui';
 
@@ -19,8 +22,8 @@ function loadPrefs() {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     const p = raw ? JSON.parse(raw) : {};
-    return { anim: p.anim !== false, logOpen: !!p.logOpen };
-  } catch { return { anim: true, logOpen: false }; }
+    return { anim: p.anim !== false, logOpen: !!p.logOpen, coopName: typeof p.coopName === 'string' ? p.coopName.slice(0, 12) : '' };
+  } catch { return { anim: true, logOpen: false, coopName: '' }; }
 }
 function savePrefs(p) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* ignore */ }
@@ -39,7 +42,10 @@ export function startApp({ createGame, DATA, root = document }) {
     bedtimeKey: null, codexTab: 'cards', codexField: 'all', codexRarity: 'all',
     quizDraft: null, leadOpen: true, logOpen: prefs.logOpen, prefs,
     fatal: null, lastScreenKey: null, reloadOnContinue: false,
+    coopName: prefs.coopName || '', coopCode: '', chatUnread: 0,
   };
+  let coop = null;
+  let chat = null;
   const fx = createFx(fxEl, appEl, () => ui.prefs, () => !!overlayEl.querySelector('.modal.quiz, .modal.picker, .modal.fatal'), () => screenKey());
   const params = (() => { try { return new URLSearchParams(location.search); } catch { return new URLSearchParams(); } })();
 
@@ -52,11 +58,127 @@ export function startApp({ createGame, DATA, root = document }) {
   if (!ui.newDifficulty) ui.newDifficulty = game.meta.settings.difficulty || 'hyojun';
 
   // -------------------------------------------------------------------------
+  // co-op (online)
+  // -------------------------------------------------------------------------
+  const netKind = params.get('net') === 'local' ? 'local' : 'peer';
+  coop = createCoop({ game, onUpdate: onCoopUpdate });
+  chat = createCoopChat({
+    coop,
+    onToggle: (open) => { if (open) ui.chatUnread = 0; render(); },
+    onLeave: () => H.coopLeaveConfirm(),
+    toast: (m) => fx.plainToast(m, 'info', 1800),
+  });
+  {
+    const room = params.get('room');
+    if (room) { ui.coopCode = room.toUpperCase().slice(0, 8); ui.view = 'coop'; }
+  }
+
+  function onCoopUpdate(u) {
+    try {
+      chat.update(u.type);
+      switch (u.type) {
+        case 'state': {
+          if (ui.view === 'coop' && game.run) { ui.view = 'run'; ui.bedtimeKey = null; }
+          ui.selected = null;
+          // keep harmless reference sheets open; close anything bound to state that may be gone
+          ui.sheets = ui.ownAction ? [] : ui.sheets.filter((s) => s.type === 'card' || s.type === 'info');
+          ui.ownAction = false;
+          render();
+          try { fx.events(u.events, game.db); } catch { /* feedback is optional */ }
+          break;
+        }
+        case 'quiz': {
+          // do not rebuild the quiz modal while somebody is typing an answer: patch the status line only
+          const st = document.getElementById('coop-quiz-status');
+          const typing = document.activeElement && document.activeElement.id === 'quiz-num';
+          if (st && typing && !coop.hasAnswered()) { patchQuizStatus(); break; }
+          render();
+          break;
+        }
+        case 'chat': {
+          if (!chat.isOpen) {
+            const last = coop.state.chat[coop.state.chat.length - 1];
+            if (last && last.id !== coop.state.selfId) {
+              ui.chatUnread += 1;
+              fx.plainToast(last.system ? last.text : `${last.name}: ${last.text}`.slice(0, 60), 'info', 2600);
+              const b = document.querySelector('.coop-chat-btn');
+              if (b && !b.querySelector('.coop-unread')) render();
+              else if (b) b.querySelector('.coop-unread').textContent = ui.chatUnread > 9 ? '9+' : String(ui.chatUnread);
+            }
+          }
+          break;
+        }
+        case 'reject': fx.plainToast(u.error || 'その操作はできない', 'warn', 2200); render(); break;
+        case 'error': fx.plainToast(u.error || '通信エラー', 'warn', 3200); render(); break;
+        case 'closed': {
+          chat.reset();
+          ui.chatUnread = 0;
+          ui.sheets = [];
+          ui.selected = null;
+          if (ui.view === 'run' && !game.run) ui.view = 'coop';
+          if (u.reason && u.reason !== '退出した') fx.plainToast(u.reason, 'warn', 4000);
+          render();
+          break;
+        }
+        default: render(); break;
+      }
+    } catch (err) { showFatal(err); }
+  }
+
+  function patchQuizStatus() {
+    const st = document.getElementById('coop-quiz-status');
+    if (!st) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = coopQuizStatusHtml();
+    const fresh = tmp.firstElementChild;
+    if (fresh) st.replaceWith(fresh);
+  }
+  function coopQuizStatusHtml() { return coopQuizStatus(ctx()); }
+
+  /** engine facade call → dispatchable action for the host */
+  function toAction(fn, args) {
+    switch (fn) {
+      case 'chooseNode': return { type: fn, nodeId: args[0] };
+      case 'playCard': return { type: fn, uid: args[0], target: args[1] };
+      case 'usePotion': return { type: fn, slot: args[0], target: args[1] };
+      case 'discardPotion': return { type: fn, slot: args[0] };
+      case 'selectCards': return { type: fn, uids: args[0] };
+      case 'pickRewardCard': case 'takeRewardRelic': case 'chooseEventOption':
+      case 'buyCard': case 'buyRelic': case 'buyPotion': return { type: fn, index: args[0] };
+      case 'chooseRestOption': return { type: fn, option: args[0] };
+      default: return { type: fn };
+    }
+  }
+
+  function coopAct(fn, args) {
+    if (fn === 'answerQuiz') { ui.quizDraft = null; coop.submitAnswer(args[0]); render(); return { ok: true, events: [] }; }
+    if (fn === 'continueQuiz') { coop.ready(); render(); return { ok: true, events: [] }; }
+    if (!coop.canAct(fn)) {
+      fx.plainToast(`今は ${coop.controllerName() || '他のプレイヤー'} の番`, 'warn', 1800);
+      ui.selected = null;
+      render();
+      return { ok: false, events: [] };
+    }
+    ui.ownAction = true;
+    const r = coop.act(toAction(fn, args));
+    if (!r.ok) {
+      ui.ownAction = false;
+      if (r.error) fx.plainToast(r.error, 'warn', 2400);
+      render();
+    } else if (r.remote) {
+      ui.selected = null;
+      ui.sheets = [];
+      render();
+    }
+    return { ok: r.ok, events: [] };
+  }
+
+  // -------------------------------------------------------------------------
   // rendering
   // -------------------------------------------------------------------------
 
   function ctx() {
-    return { game, ui, db: game.db, run: game.run, meta: game.meta };
+    return { game, ui, db: game.db, run: game.run, meta: game.meta, coop };
   }
 
   function screenKey() {
@@ -91,12 +213,13 @@ export function startApp({ createGame, DATA, root = document }) {
     if (ui.view === 'settings') return settingsView(c);
     if (ui.view === 'codex') return codexView(c);
     if (ui.view === 'weakness') return weaknessView(c);
+    if (ui.view === 'coop') return coopView(c);
     const r = c.run;
     if (!r) { ui.view = 'title'; return titleView(c); }
     const ended = r.screen === 'victory' || r.screen === 'gameOver';
     const key = bedtimeKeyRun();
     const banner = !ended && ui.bedtimeKey !== key ? bedtimeBanner(game.bedtimeWarning()) : '';
-    return `${ended ? '' : topbar(c)}${banner}${runBody(c)}`;
+    return `${ended ? '' : topbar(c)}${coopBar(c)}${banner}${runBody(c)}`;
   }
 
   function overlayHtml(c) {
@@ -142,6 +265,7 @@ export function startApp({ createGame, DATA, root = document }) {
       appEl.innerHTML = appHtml(c);
       appEl.dataset.view = ui.view;
       appEl.dataset.screen = ui.view === 'run' && c.run ? c.run.screen : ui.view;
+      appEl.dataset.coop = coop && coop.active ? (coop.isMyTurn() ? 'mine' : 'wait') : 'off';
       overlayEl.innerHTML = overlayHtml(c);
       const modal = overlayEl.querySelector('.modal, .sheet');
       document.body.classList.toggle('modal-open', !!modal);
@@ -204,6 +328,9 @@ export function startApp({ createGame, DATA, root = document }) {
 
   function act(fn, ...args) {
     let res;
+    if (coop && coop.active && fn !== 'newRun') {
+      try { return coopAct(fn, args); } catch (err) { showFatal(err); return null; }
+    }
     try {
       if (typeof game[fn] !== 'function') throw new Error('unknown action ' + fn);
       res = game[fn](...args);
@@ -252,6 +379,7 @@ export function startApp({ createGame, DATA, root = document }) {
   }
 
   function goTitle() {
+    if (coop && coop.active) { try { coop.leave(); } catch { /* */ } }
     ui.view = 'title';
     ui.titleMode = 'main';
     ui.selected = null;
@@ -298,6 +426,7 @@ export function startApp({ createGame, DATA, root = document }) {
       render();
     },
     back() {
+      if (ui.view === 'coop' && coop.active) { coop.leave(); }
       ui.view = ui.back && ui.back !== ui.view ? ui.back : 'title';
       if (ui.view === 'run' && !game.run) ui.view = 'title';
       if (ui.view === 'title') ui.bedtimeKey = null;
@@ -440,15 +569,17 @@ export function startApp({ createGame, DATA, root = document }) {
     menu() { openSheet({ type: 'menu' }); },
     closeSheet() { ui.sheets.pop(); render(); },
     closeAllSheets() { ui.sheets = []; render(); },
-    toTitle() { goTitle(); },
+    toTitle() { if (coop.active) H.coopLeaveConfirm(); else goTitle(); },
     confirmAbandon() {
       openSheet({ type: 'confirm', title: 'ランを放棄', body: '現在のランを終了し、敗北として記録します。誤答ノートや正答率は残ります。', yes: 'abandonConfirmed', yesLabel: '放棄する', danger: true });
     },
     abandonConfirmed() {
+      if (coop.isGuest) { goTitle(); return; }
+      if (coop.active) coop.leave();
       try { game.abandonRun(); } catch (err) { showFatal(err); return; }
       goTitle();
     },
-    finishToTitle() { try { game.closeRun(); } catch { /* */ } goTitle(); },
+    finishToTitle() { const guest = coop.isGuest; if (coop.active) coop.leave(); if (!guest) { try { game.closeRun(); } catch { /* */ } } goTitle(); },
     confirmResetMeta() {
       openSheet({ type: 'confirm', title: '学習記録を消去', body: '誤答ノート・正答率・反応ノート・図鑑の記録をすべて消去します。元に戻せません。', yes: 'resetMetaConfirmed', yesLabel: '消去する', danger: true });
     },
@@ -458,6 +589,42 @@ export function startApp({ createGame, DATA, root = document }) {
     codexFilter(el) {
       if (el.dataset.k === 'field') ui.codexField = el.dataset.id; else ui.codexRarity = el.dataset.id;
       render();
+    },
+    // ---- co-op ----
+    coopOpen() { ui.view = 'coop'; ui.back = 'title'; ui.sheets = []; coop.state.error = null; render(); },
+    coopHost() {
+      rememberName();
+      coop.host({ name: ui.coopName, kind: netKind }).catch(() => {});
+      render();
+    },
+    coopStart(el) {
+      const cont = el.dataset.continue === '1';
+      if (!cont) {
+        try {
+          if (game.run && !game.run.result) game.abandonRun();
+          else if (game.hasSavedRun()) { game.continueRun(); game.abandonRun(); }
+        } catch (err) { showFatal(err); return; }
+      }
+      const d = ui.newDifficulty || 'hyojun';
+      if (!cont) game.setSetting('difficulty', d);
+      const opts = cont ? { continueSaved: true } : { difficulty: d };
+      const seed = params.get('seed');
+      if (seed && !cont) opts.seed = seed;
+      const res = coop.start(opts);
+      if (!res.ok) { fx.plainToast(res.error || '開始できない', 'warn'); render(); }
+    },
+    coopLeave() { coop.leave(); coop.state.closeReason = null; chat.reset(); ui.view = 'coop'; render(); },
+    coopLeaveConfirm() {
+      chat.close();
+      openSheet({ type: 'confirm', title: '部屋を出る', body: coop.isHost ? 'ホストが出ると部屋は閉じ、全員の協力プレイが終了します。ランは自分の端末に保存され、「続きから」で再開できます。' : '部屋を出てタイトルへ戻ります。誤答ノートなど自分の学習記録は残ります。', yes: 'coopLeaveConfirmed', yesLabel: '部屋を出る', danger: true });
+    },
+    coopLeaveConfirmed() { ui.sheets = []; goTitle(); },
+    coopChatToggle() { chat.toggle(); },
+    coopCopy(el) {
+      const t = el.dataset.t || '';
+      const done = () => fx.plainToast('コピーした', 'info', 1400);
+      const fail = () => fx.plainToast('コピーできなかった。手で写して送る: ' + coop.state.code, 'warn', 3600);
+      try { navigator.clipboard.writeText(t).then(done, fail); } catch { fail(); }
     },
     // ---- fatal ----
     fatalTitle() {
@@ -469,6 +636,13 @@ export function startApp({ createGame, DATA, root = document }) {
   };
 
   function safe(f) { try { return f(); } catch { return false; } }
+
+  function rememberName() {
+    const el = document.getElementById('coop-name');
+    if (el) ui.coopName = el.value.trim().slice(0, 12);
+    ui.prefs.coopName = ui.coopName;
+    savePrefs(ui.prefs);
+  }
 
   function saveDraft(input) {
     const p = game.run?.pending;
@@ -522,6 +696,16 @@ export function startApp({ createGame, DATA, root = document }) {
   });
 
   document.addEventListener('submit', (ev) => {
+    const join = ev.target.closest('[data-form="coopJoin"]');
+    if (join) {
+      ev.preventDefault();
+      rememberName();
+      const codeEl = document.getElementById('coop-code');
+      ui.coopCode = (codeEl?.value || '').trim();
+      coop.join({ code: ui.coopCode, name: ui.coopName, kind: netKind }).catch(() => {});
+      render();
+      return;
+    }
     const form = ev.target.closest('[data-form="numeric"]');
     if (!form) return;
     ev.preventDefault();
@@ -533,6 +717,8 @@ export function startApp({ createGame, DATA, root = document }) {
 
   document.addEventListener('input', (ev) => {
     if (ev.target.matches('[data-input="quizDraft"]')) saveDraft(ev.target);
+    else if (ev.target.matches('[data-input="coopName"]')) ui.coopName = ev.target.value.slice(0, 12);
+    else if (ev.target.matches('[data-input="coopCode"]')) ui.coopCode = ev.target.value.slice(0, 8);
   });
 
   document.addEventListener('change', (ev) => {
@@ -568,7 +754,9 @@ export function startApp({ createGame, DATA, root = document }) {
 
   render();
 
-  const api = { game, ui, render, act };
+  window.addEventListener('pagehide', () => { try { if (coop.active) coop.leave(); } catch { /* */ } });
+
+  const api = { game, ui, render, act, coop };
   try { window.__chemyth = api; } catch { /* */ }
   return api;
 }

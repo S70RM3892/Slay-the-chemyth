@@ -1,5 +1,6 @@
 // Shared UI components (pure: state -> HTML string). Every data string goes
 // through chem() (or esc() for non-data/plain values).
+import { coopQuizStatus, coopQuizResult, coopReadyButton } from './views/coop.js';
 import { constants as C } from '../engine/index.js';
 import { chem, esc, numMarkup } from './chem.js';
 import {
@@ -247,11 +248,11 @@ export function potionSheet(ctx, s) {
 
 export function menuSheet(ctx) {
   const body = `<div class="menu-list">
-    <button class="btn" data-a="toTitle">タイトルへ戻る（自動保存済み）</button>
+    ${ctx.coop && ctx.coop.active ? '<button class="btn" data-a="coopChatToggle">💬 チャットと参加者</button><button class="btn" data-a="coopLeaveConfirm">部屋を出る</button>' : '<button class="btn" data-a="toTitle">タイトルへ戻る（自動保存済み）</button>'}
     <button class="btn" data-a="openView" data-view="codex">📚 図鑑</button>
     <button class="btn" data-a="openView" data-view="weakness">📊 弱点分析</button>
     <button class="btn" data-a="openView" data-view="settings">⚙ 設定</button>
-    <button class="btn danger" data-a="confirmAbandon">ランを放棄する</button>
+    ${ctx.coop && ctx.coop.isGuest ? '' : '<button class="btn danger" data-a="confirmAbandon">ランを放棄する</button>'}
   </div>
   <p class="note">進行は行動ごとに自動保存されます。いつ閉じても「続きから」で再開できます。</p>`;
   return sheetFrame('メニュー', body);
@@ -287,6 +288,11 @@ export function quizModal(ctx, p) {
   const { db, ui } = ctx;
   const q = db.questions.get(p.questionId);
   const result = p.kind === 'quizResult';
+  const coopOn = !!(ctx.coop && ctx.coop.active);
+  const answered = coopOn && !result && ctx.coop.hasAnswered();
+  const mineAns = coopOn ? ctx.coop.state.quiz.mine?.answer : undefined;
+  const team = coopOn && result && Array.isArray(p.team) ? p.team : null;
+  const meInTeam = team ? team.find((x) => x.id === ctx.coop.state.selfId) : null;
   const head = `<div class="quiz-meta">
       <span class="badge ${fieldClass(p.field)}">${esc(fieldLabel(p.field))}</span>
       ${p.level ? `<span class="badge lv">${esc(LEVEL_LABELS[p.level] || 'L' + p.level)}</span>` : ''}
@@ -308,10 +314,12 @@ export function quizModal(ctx, p) {
       let st = '';
       if (result) {
         if (i === p.correctDisplay) st = ' correct';
-        else if (Number(p.answer) === i) st = ' wrong';
-      }
-      return `<button class="choice${st}" data-a="answerChoice" data-i="${i}"${result ? ' disabled' : ''}><span class="choice-key">${'ABCD'[i] || i + 1}</span><span class="choice-text">${chem(c)}</span>${st === ' correct' ? '<span class="choice-mark" aria-label="正解">◯</span>' : st === ' wrong' ? '<span class="choice-mark" aria-label="あなたの解答">✕</span>' : ''}</button>`;
+        else if (team ? (meInTeam && meInTeam.answerText === c) : Number(p.answer) === i) st = ' wrong';
+      } else if (answered && Number(mineAns) === i) st = ' picked';
+      return `<button class="choice${st}" data-a="answerChoice" data-i="${i}"${result || answered ? ' disabled' : ''}><span class="choice-key">${'ABCD'[i] || i + 1}</span><span class="choice-text">${chem(c)}</span>${st === ' correct' ? '<span class="choice-mark" aria-label="正解">◯</span>' : st === ' wrong' ? '<span class="choice-mark" aria-label="あなたの解答">✕</span>' : ''}</button>`;
     }).join('')}</div>`;
+  } else if (answered) {
+    answerArea = `<p class="num-sent">送った解答: <b>${chem(String(mineAns ?? ''))}</b>${p.unit ? ' ' + chem(p.unit) : ''}</p>`;
   } else if (!result) {
     const draft = ui.quizDraft?.qid === p.questionId ? ui.quizDraft.value : '';
     answerArea = `<form class="numeric" data-form="numeric" autocomplete="off">
@@ -340,16 +348,17 @@ export function quizModal(ctx, p) {
       ? `${'ABCD'[p.correctDisplay] || ''}　${chem(p.choices?.[p.correctDisplay] ?? p.correctAnswerText ?? '')}`
       : `${chem(numMarkup(Number(q?.answer ?? NaN)) || p.correctAnswerText)}${p.unit ? ' ' + chem(p.unit) : ''}${q?.tolerance ? `（許容 ±${Math.round(q.tolerance * 100)}%）` : ''}`;
     const nb = notebookStatus(p);
-    resultArea = `<div class="verdict ${p.correct ? 'ok' : 'ng'}" role="status">${p.correct ? '◯ 正解！' : '✕ 不正解'}</div>
+    resultArea = `<div class="verdict ${p.correct ? 'ok' : 'ng'}" role="status">${team ? (p.correct ? '◯ チーム正解！' : '✕ チーム不正解') : (p.correct ? '◯ 正解！' : '✕ 不正解')}</div>
       <dl class="answers">
-        <div><dt>あなたの解答</dt><dd>${yours}</dd></div>
+        ${team ? '' : `<div><dt>あなたの解答</dt><dd>${yours}</dd></div>`}
         <div><dt>正答</dt><dd>${corr}</dd></div>
       </dl>
+      ${team ? coopQuizResult(ctx, p) : ''}
       <section class="explain"><h3>解説</h3><div>${chem(p.explain || '')}</div></section>
       ${p.trap ? `<section class="trap"><h3>⚠ ありがちなミス</h3><div>${chem(p.trap)}</div></section>` : ''}
-      ${nb ? `<p class="nb-status ${p.correct ? 'ok' : 'ng'}">${nb}</p>` : ''}
+      ${nb && !team ? `<p class="nb-status ${p.correct ? 'ok' : 'ng'}">${nb}</p>` : ''}
       ${p.misconceptionAdded ? '<p class="nb-status ng">「思い込み」がデッキに混入した（自習室の復習で除去できる）</p>' : ''}
-      <button class="btn primary wide" data-a="continueQuiz">次へ</button>`;
+      ${coopOn ? coopReadyButton(ctx) : '<button class="btn primary wide" data-a="continueQuiz">次へ</button>'}`;
   }
 
   return `<div class="modal-backdrop quiz-backdrop"></div>
@@ -360,6 +369,7 @@ export function quizModal(ctx, p) {
       <p class="quiz-text" id="quiz-q" tabindex="-1">${chem(p.text)}</p>
       ${given}
       ${answerArea}
+      ${coopOn && !result ? coopQuizStatus(ctx) : ''}
       ${resultArea}
     </div>
   </div>`;

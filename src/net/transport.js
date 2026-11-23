@@ -56,6 +56,8 @@ function loadPeerJs() {
 }
 
 const CONNECT_TIMEOUT_MS = 20000;
+/** Optional override of the PeerJS options (own broker / TURN): set globalThis.CHEMYTH_PEER_OPTIONS before connecting. */
+const peerOptions = () => ({ debug: 0, ...(globalThis.CHEMYTH_PEER_OPTIONS || {}) });
 
 function describePeerError(err) {
   switch (err && err.type) {
@@ -74,7 +76,7 @@ function describePeerError(err) {
 async function hostPeer(code, h) {
   const Peer = await loadPeerJs();
   return new Promise((resolve, reject) => {
-    const peer = new Peer(ROOM_PREFIX + code, { debug: 0 });
+    const peer = new Peer(ROOM_PREFIX + code, peerOptions());
     const conns = new Map();
     let opened = false;
     const timer = setTimeout(() => { if (!opened) { peer.destroy(); reject(new Error('接続サーバーが応答しない')); } }, CONNECT_TIMEOUT_MS);
@@ -106,7 +108,7 @@ async function hostPeer(code, h) {
 async function joinPeer(code, h) {
   const Peer = await loadPeerJs();
   return new Promise((resolve, reject) => {
-    const peer = new Peer({ debug: 0 });
+    const peer = new Peer(peerOptions());
     let conn = null;
     let settled = false;
     let closed = false;

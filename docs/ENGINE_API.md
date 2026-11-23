@@ -158,3 +158,11 @@ Targets are `'player'` or an enemy `uid`.
 - `npm test` — node:test suites in `tests/` (fixture data in `tests/fixtures/data.js`).
 - `npm run validate` — `tools/validate-data.js [--allow-missing] [--quiet-warnings]`: strict schema/reference check of all data; exit 1 on errors.
 - `npm run sim` — `tools/sim.js [--runs=50] [--correct=0.7] [--difficulty=hyojun] [--seed=sim] [--fixtures] [--verbose]`: headless bot runs; prints win rate, floors, deaths per act, deadliest encounters, quiz/reaction stats and any engine error or soft-lock (exit 1 if any).
+
+## Co-op support (used by `src/net/coop.js`)
+
+- `answerQuiz(answer, {teamCorrect?, personalCorrect?, team?})` — `teamCorrect` overrides the game outcome, `personalCorrect` is what goes to this player's own notebook/stats, `team` (`[{id,name,answerText,correct}]`) is copied to the `quizResult` pending.
+- `judgeAnswer(answer)` — judge against the pending quiz without consuming it.
+- `setMirror(run|null)` / `isMirror` — guest: show the host's run; a mirrored run is never written to the local save.
+- `recordQuizAnswer(questionId, correct)`, `recordReactionEvent(ev)` — guest: write personal results to the local meta.
+- `precip` on a non-boss enemy does not stack, and cannot be re-applied until the enemy has taken one action after a skipped one.

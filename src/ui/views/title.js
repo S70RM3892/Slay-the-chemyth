@@ -39,6 +39,7 @@ export function titleView(ctx) {
     panel = `<nav class="title-menu" aria-label="タイトルメニュー">
       ${canContinue ? '<button class="btn primary big" data-a="continue">▶ 続きから</button>' : ''}
       <button class="btn ${canContinue ? '' : 'primary'} big" data-a="titleMode" data-mode="new">＋ 新規</button>
+      <button class="btn big" data-a="coopOpen">🤝 友達と協力（オンライン）</button>
       <div class="title-sub">
         <button class="btn" data-a="openView" data-view="codex">📚 図鑑</button>
         <button class="btn" data-a="openView" data-view="weakness">📊 弱点分析</button>
