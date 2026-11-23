@@ -1,0 +1,14 @@
+{
+  "name": "slay-the-chemyth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "化学を題材にしたオリジナルのローグライク・デッキ構築ゲーム（京大化学対策）",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tests/",
+    "validate": "node tools/validate-data.js",
+    "sim": "node tools/sim.js",
+    "serve": "npx serve ."
+  }
+}
