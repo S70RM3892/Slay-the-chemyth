@@ -396,7 +396,7 @@ export const QUESTIONS = [
   },
   {
     id: 'org-048', field: 'organic', topic: 'カルボン酸・エステル', level: 3, type: 'numeric',
-    text: 'アセチルサリチル酸 CH_3COOC_6H_4COOH 1.80 g に 0.50 mol/L 水酸化ナトリウム水溶液を過剰に加えて加熱し、完全に反応させた。消費された水酸化ナトリウム水溶液は何 mL か。',
+    text: 'アセチルサリチル酸 CH_3COOC_6H_4COOH 1.80 g に 0.50 mol/L 水酸化ナトリウム水溶液を過剰に加えて加熱し、完全に反応させた。消費された水酸化ナトリウム水溶液は何 mL か。ただし、生じた酸性の官能基（カルボキシ基とフェノール性ヒドロキシ基）はすべてナトリウム塩になるものとする。',
     given: AM,
     answer: 60, unit: 'mL', tolerance: 0.03,
     explain: 'C_9H_8O_4 = 180 → 1.80/180 = 0.0100 mol\nNaOH を消費するのは:\n① −COOH の中和: 1\n② エステルの加水分解で生じる酢酸の中和: 1\n③ 加水分解で現れるフェノール性 OH（NaOH 水溶液中ではフェノキシドになる）: 1\nCH_3COOC_6H_4COOH + 3NaOH → CH_3COONa + NaOC_6H_4COONa + 2H_2O\n0.0100 × 3 = 0.0300 mol → 0.0300/0.50 = 0.060 L = 60 mL',
