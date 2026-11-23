@@ -2,7 +2,7 @@
 import { constants as C } from '../../engine/index.js';
 import { chem, esc } from '../chem.js';
 import { cardTile, doBtn } from '../components.js';
-import { RARITY_LABELS, fieldLabel, fieldClass, pct, actLabel } from '../format.js';
+import { RARITY_LABELS, answerMarkup, fieldLabel, fieldClass, pct, actLabel } from '../format.js';
 
 function relicRow(db, id, { a = 'relicInfo', data = {}, extra = '', disabled = false } = {}) {
   const d = db.relics.get(id);
@@ -69,7 +69,7 @@ export function rewardView(ctx) {
     <div class="reward-summary">
       <span>💰 研究費 +${r.gold}</span>
       ${r.heal ? `<span>❤ HP +${r.heal}</span>` : ''}
-      ${last ? `<span>⚗ 反応 ${last.reactions || 0}</span><span>◯ 正解 ${last.correct || 0}</span><span>⏱ ${last.turns}ターン</span>` : ''}
+      ${last ? `<span>⚗ 反応 ${last.reactions || 0}</span><span>✔ 正解 ${last.correct || 0}</span><span>⏱ ${last.turns}ターン</span>` : ''}
     </div>
     <section class="reward-sec"><h2>カード</h2>${cards}</section>
     ${potion}
@@ -201,7 +201,7 @@ export function resultView(ctx) {
       ${r.equation ? `<div class="equation">${chem(r.equation)}</div>` : ''}${r.explain ? `<div class="rx-explain">${chem(r.explain)}</div>` : ''}</li>`).join('') : '<li class="muted">なし</li>';
   const wrong = s.wrongQuestions.length ? s.wrongQuestions.map((q) => `<li><details><summary>${chem(q.text)}</summary>
       <p class="muted">${esc(fieldLabel(q.field))} ・ ${chem(q.topic || '')}</p>
-      <p><b>正答:</b> ${chem(q.type === 'choice' ? q.choices[q.answer] : String(q.answer) + (q.unit ? ' ' + q.unit : ''))}</p>
+      <p><b>正答:</b> ${chem(answerMarkup(q))}</p>
       <div class="explain">${chem(q.explain || '')}</div>${q.trap ? `<div class="trap">⚠ ${chem(q.trap)}</div>` : ''}</details></li>`).join('') : '<li class="muted">誤答なし</li>';
   return `<main class="screen result-screen">
     <h1 class="screen-title ${won ? 'win' : 'lose'}">${won ? '🎓 二次試験 突破！' : '💤 力尽きた……'}</h1>

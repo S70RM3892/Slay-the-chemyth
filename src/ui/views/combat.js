@@ -47,7 +47,7 @@ function enemyPanel(ctx, e, selDef) {
   }
   const tags = game.displayTags(e).map((t) => t.hidden
     ? '<button class="chip tag hidden" data-a="hiddenTag" aria-label="隠れた性質（未判明）">?</button>'
-    : `<button class="chip tag${t.wasHidden ? ' revealed' : ''}" data-a="tag" data-id="${esc(t.tag)}">${chem(tagLabel(db, t.tag))}</button>`).join('');
+    : `<button class="chip tag${t.wasHidden ? ' revealed' : ''}" data-a="tag" data-id="${esc(t.tag)}"><span>${chem(tagLabel(db, t.tag))}</span></button>`).join('');
   const label = `${e.name}、HP ${e.hp}/${e.maxHp}${e.block ? '、ブロック' + e.block : ''}${e.intent ? '、次の行動 ' + (INTENT_INFO[e.intent.intent]?.label || '') + (e.intent.preview?.damage != null ? ' ' + e.intent.preview.damage + 'ダメージ' + (e.intent.preview.times > 1 ? '×' + e.intent.preview.times : '') : '') : ''}${targeting ? '。タップで対象に選ぶ' : '。タップで解説'}`;
   return `<div class="enemy tier-${esc(e.tier)}${targeting ? ' targetable' : ''}" data-unit="${esc(e.uid)}">
     <button class="enemy-main" data-a="enemy" data-uid="${esc(e.uid)}" aria-label="${esc(label)}">
@@ -113,7 +113,7 @@ function playerStrip(ctx) {
   const { run, db } = ctx;
   const c = run.combat;
   const p = c.player;
-  const powers = (p.powers || []).map((pw, i) => `<button class="chip power" data-a="power" data-i="${i}">✦ ${chem(pw.name || '常在効果')}</button>`).join('');
+  const powers = (p.powers || []).map((pw, i) => `<button class="chip power" data-a="power" data-i="${i}"><span>✦ ${chem(pw.name || '常在効果')}</span></button>`).join('');
   return `<section class="player-strip" data-unit="player">
     <div class="ps-who"><span class="ps-emoji" aria-hidden="true">🧑‍🔬</span><span class="ps-name">あなた</span></div>
     ${hpBar(run.player.hp, run.player.maxHp, { block: p.block, cls: 'player' })}
@@ -139,9 +139,9 @@ export function combatView(ctx) {
   }).join('');
 
   const targetMsg = ui.selected?.kind === 'card' && selDef
-    ? `<div class="target-msg" role="status">🎯 「${chem(selDef.name)}」の対象の敵をタップ <button class="btn small" data-a="cancelSelect">取消</button></div>`
+    ? `<div class="target-msg" role="status"><span>🎯 「${chem(selDef.name)}」の対象の敵をタップ</span> <button class="btn small" data-a="cancelSelect">取消</button></div>`
     : ui.selected?.kind === 'potion'
-      ? '<div class="target-msg" role="status">🎯 試薬瓶を使う敵をタップ <button class="btn small" data-a="cancelSelect">取消</button></div>'
+      ? '<div class="target-msg" role="status"><span>🎯 試薬瓶を使う敵をタップ</span> <button class="btn small" data-a="cancelSelect">取消</button></div>'
       : '';
 
   const kindLabel = { battle: '戦闘', elite: '強敵', boss: 'ボス戦' }[c.kind] || '戦闘';
@@ -150,7 +150,7 @@ export function combatView(ctx) {
       <div class="combat-title"><span class="ct-kind">${esc(kindLabel)}</span><span class="ct-turn">ターン ${c.turn}</span>${c.reactionsThisCombat ? `<span class="ct-rx">⚗ 反応 ${c.reactionsThisCombat}</span>` : ''}</div>
       <section class="enemies count-${c.enemies.length}" aria-label="敵">${c.enemies.map((e) => enemyPanel(ctx, e, selDef)).join('')}</section>
     </div>
-    <div class="combat-mid">
+    <div class="combat-mid" data-scroll-key="mid">
       ${phMeter(ctx)}
       ${logPanel(ctx)}
     </div>

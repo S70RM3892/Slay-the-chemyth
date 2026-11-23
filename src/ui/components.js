@@ -49,6 +49,7 @@ export function cardTile(def, opts = {}) {
     small ? 'small' : '', sold ? 'sold' : '', def.upgraded ? 'upgraded' : '',
   ].filter(Boolean).join(' ');
   const symbol = def.formula ? chem(def.formula) : esc([...(def.name || '?')][0]);
+  const symLen = def.formula ? def.formula.replace(/[_^{}]/g, '').length : 1;
   const hintBadge = hint && hint.state === 'yes' ? '<span class="card-hint yes">⚗ 反応</span>'
     : hint && hint.state === 'maybe' ? '<span class="card-hint maybe">⚗ 反応?</span>'
       : hint && hint.state === 'no' && def.strict ? '<span class="card-hint no">不発</span>' : '';
@@ -58,7 +59,7 @@ export function cardTile(def, opts = {}) {
     <button class="card-main" data-a="${esc(a)}"${attrs(data)} data-lp="card" data-id="${esc(def.id)}" data-up="${def.upgraded ? 1 : 0}"${disabled ? ' disabled' : ''} aria-label="${esc(label)}">
       <span class="card-cost${cost !== def.cost && cost != null && def.cost != null ? ' changed' : ''}">${esc(costLabel(cost))}</span>
       <span class="card-field">${esc(CARD_FIELD_LABELS[def.field] || '')}</span>
-      <span class="card-symbol">${symbol}</span>
+      <span class="card-symbol${symLen > 12 ? ' xlong' : symLen > 7 ? ' long' : ''}">${symbol}</span>
       <span class="card-name">${chem(def.name)}</span>
       <span class="card-type">${esc(TYPE_LABELS[def.type] || '')}${kws.length ? '・' + esc(kws.join('・')) : ''}</span>
       <span class="card-text">${chem(def.text || '')}</span>
@@ -168,7 +169,7 @@ export function enemySheet(ctx, s) {
   const def = db.enemies.get(e.id) || {};
   const tags = game.displayTags(e).map((t) => t.hidden
     ? '<button class="chip tag hidden" data-a="hiddenTag" aria-label="隠れた性質">?</button>'
-    : `<button class="chip tag${t.wasHidden ? ' revealed' : ''}" data-a="tag" data-id="${esc(t.tag)}">${chem(tagLabel(db, t.tag))}</button>`).join('');
+    : `<button class="chip tag${t.wasHidden ? ' revealed' : ''}" data-a="tag" data-id="${esc(t.tag)}"><span>${chem(tagLabel(db, t.tag))}</span></button>`).join('');
   const active = new Set(game.activePhRules(e).map((r) => r.note));
   const rules = (def.phRules || []).map((r) => `<li class="${active.has(r.note) ? 'active' : ''}"><b>${esc(phRangeText(r))}</b>${r.takenMult ? ` 被ダメ×${esc(r.takenMult)}` : ''}${r.dealtMult ? ` 与ダメ×${esc(r.dealtMult)}` : ''}<br>${chem(r.note || '')}${active.has(r.note) ? ' <span class="tagline">有効中</span>' : ''}</li>`).join('');
   const intent = e.intent ? `<p><span aria-hidden="true">${INTENT_INFO[e.intent.intent]?.icon || ''}</span> <b>${chem(e.intent.name)}</b>（${esc(INTENT_INFO[e.intent.intent]?.label || '')}）: ${chem(describeEffects(db, e.intent.effects, { side: 'enemy', enemy: e }) || '—')}</p>` : '<p>—</p>';

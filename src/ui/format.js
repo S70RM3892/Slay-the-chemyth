@@ -1,6 +1,6 @@
 // Labels and human-readable descriptions derived from engine constants/data.
 import { constants as C } from '../engine/index.js';
-import { chem, esc } from './chem.js';
+import { chem, esc, numMarkup } from './chem.js';
 
 export const TYPE_LABELS = { attack: '攻撃', skill: 'スキル', power: 'パワー', status: '状態異常', curse: '呪い' };
 export const RARITY_LABELS = { starter: '初期', common: 'コモン', uncommon: 'アンコモン', rare: 'レア', special: '特殊', boss: 'ボス', shop: '購買部' };
@@ -179,7 +179,7 @@ export function statusChips(statuses, owner) {
   return ids.map((id) => {
     const n = statuses[id];
     const debuff = C.DEBUFFS.includes(id) || n < 0;
-    return `<button class="chip status ${debuff ? 'debuff' : 'buff'}" data-a="status" data-id="${esc(id)}" data-n="${esc(n)}" aria-label="${esc(statusLabel(id))} ${esc(n)}"><span aria-hidden="true">${STATUS_ICONS[id] || '•'}</span>${esc(statusLabel(id))}<b>${esc(n)}</b></button>`;
+    return `<button class="chip status ${debuff ? 'debuff' : 'buff'}" data-a="status" data-id="${esc(id)}" data-n="${esc(n)}" aria-label="${esc(statusLabel(id))} ${esc(n)}"><span aria-hidden="true">${STATUS_ICONS[id] || '•'}</span><span>${esc(statusLabel(id))}</span><b>${esc(n)}</b></button>`;
   }).join('');
 }
 
@@ -189,6 +189,14 @@ export function fmtDate(t) {
     const d = new Date(t);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   } catch { return ''; }
+}
+
+/** Correct answer of a question as markup (numeric answers in ×10^n form). */
+export function answerMarkup(q) {
+  if (!q) return '';
+  if (q.type === 'choice') return Array.isArray(q.choices) ? q.choices[q.answer] ?? '' : String(q.answer);
+  const n = Number(q.answer);
+  return (Number.isFinite(n) ? numMarkup(n) : String(q.answer)) + (q.unit ? ' ' + q.unit : '');
 }
 
 export { chem, esc };

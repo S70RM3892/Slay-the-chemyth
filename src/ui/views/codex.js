@@ -2,7 +2,7 @@
 import { constants as C } from '../../engine/index.js';
 import { chem, esc } from '../chem.js';
 import { cardTile } from '../components.js';
-import { CARD_FIELD_LABELS, RARITY_LABELS, fieldLabel, fieldClass, pct, tagLabel, fmtDate, LEVEL_LABELS, phRangeText } from '../format.js';
+import { CARD_FIELD_LABELS, RARITY_LABELS, answerMarkup, fieldLabel, fieldClass, pct, tagLabel, fmtDate, LEVEL_LABELS, phRangeText } from '../format.js';
 
 const TABS = [['cards', 'カード'], ['enemies', '敵'], ['reactions', '反応ノート'], ['notebook', '誤答ノート']];
 
@@ -53,7 +53,7 @@ function enemiesTab(ctx) {
     if (!list.length) return '';
     return `<section class="codex-sec"><h2>Act ${a >= 5 ? '終' : a}：${esc(C.ACT_NAMES[a] || '')}</h2><ul class="enemy-list">${list.map((e) => {
       if (!seen[e.id]) return `<li class="locked"><span class="el-emoji" aria-hidden="true">❔</span><div><b>？？？</b><p class="muted">${esc(tierL[e.tier] || '')}・未遭遇</p></div></li>`;
-      const tags = (e.tags || []).map((t) => `<span class="chip tag static">${chem(tagLabel(db, t))}</span>`).join('') + (e.hiddenTags || []).map(() => '<span class="chip tag hidden static">?</span>').join('');
+      const tags = (e.tags || []).map((t) => `<span class="chip tag static"><span>${chem(tagLabel(db, t))}</span></span>`).join('') + (e.hiddenTags || []).map(() => '<span class="chip tag hidden static">?</span>').join('');
       const rules = (e.phRules || []).map((r) => `<li><b>${esc(phRangeText(r))}</b> ${chem(r.note || '')}</li>`).join('');
       return `<li><span class="el-emoji" aria-hidden="true">${esc(e.emoji)}</span><div>
         <b>${chem(e.name)}</b> ${e.formula ? `<span class="formula">${chem(e.formula)}</span>` : ''} <span class="tagline">${esc(tierL[e.tier] || '')}</span>${e.pI != null ? ` <span class="tagline">pI ${esc(e.pI)}</span>` : ''}
@@ -86,7 +86,7 @@ function notebookTab(ctx) {
   return `<p class="muted">${list.length}問。2回連続正解で卒業。</p><ul class="wrong-list">${list.map((n) => {
     const q = n.question;
     if (!q) return '';
-    const ans = q.type === 'choice' ? q.choices[q.answer] : `${q.answer}${q.unit ? ' ' + q.unit : ''}`;
+    const ans = answerMarkup(q);
     return `<li><details><summary><span class="badge ${fieldClass(q.field)}">${esc(fieldLabel(q.field))}</span> ${chem(q.text)}</summary>
       <p class="muted">${chem(q.topic || '')} ・ ${esc(LEVEL_LABELS[q.level] || '')} ・ 誤答 ${n.wrong}回 ・ 連続正解 ${n.streak || 0}/${C.GRADUATE_STREAK}</p>
       ${q.given ? `<div class="given"><span class="given-label">与条件</span><div>${chem(q.given)}</div></div>` : ''}
