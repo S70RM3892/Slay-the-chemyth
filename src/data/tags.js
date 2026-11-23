@@ -49,7 +49,6 @@ export const TAGS = [
   { id: 'hydrophilic_colloid', label: '親水コロイド', group: 'state', desc: '水和しているため少量の電解質では沈殿せず、多量の電解質で沈殿する（塩析）。' },
 
   // ---- functional（官能基・構造） ----
-  { id: 'alkane', label: '飽和炭化水素', group: 'functional', desc: 'C-C単結合のみ。光照射下でハロゲンと置換反応する。' },
   { id: 'alkene', label: 'C=C', group: 'functional', desc: '炭素間二重結合。臭素水を脱色する（付加反応）。' },
   { id: 'alkyne', label: 'C≡C', group: 'functional', desc: '炭素間三重結合。臭素水を脱色する（付加反応）。' },
   { id: 'alcohol1', label: '第一級アルコール', group: 'functional', desc: 'R-CH_2OH。Naと反応してH_2を発生。酸化されてアルデヒド→カルボン酸。' },
@@ -82,12 +81,10 @@ export const TAGS = [
   { id: 'polypeptide', label: 'トリペプチド以上', group: 'bio', desc: 'ペプチド結合を2個以上もつ。ビウレット反応（赤紫色）が陽性。ジペプチドは陰性。' },
   { id: 'protein', label: 'タンパク質', group: 'bio', desc: '高次構造をもつポリペプチド。熱・強酸・強塩基・重金属イオン・有機溶媒で変性する。' },
   { id: 'sulfur', label: '硫黄 S', group: 'bio', desc: 'システイン・メチオニンなどに含まれる。NaOHで加熱後、酢酸鉛(II)で黒色PbS。' },
-  { id: 'nucleic', label: '核酸', group: 'bio', desc: 'ヌクレオチドの重合体。塩基対（A-T(U)、G-C）を水素結合でつくる。' },
 
   // ---- polymer（合成高分子） ----
   { id: 'polyamide', label: 'ポリアミド', group: 'polymer', desc: 'アミド結合でつながった高分子（ナイロンなど）。縮合重合で得る。' },
   { id: 'polyester', label: 'ポリエステル', group: 'polymer', desc: 'エステル結合でつながった高分子（PETなど）。縮合重合で得る。' },
   { id: 'rubber', label: 'ゴム', group: 'polymer', desc: 'イソプレンなどの付加重合体。C=Cを含み、硫黄で架橋（加硫）すると弾性が増す。' },
   { id: 'thermoplastic', label: '熱可塑性', group: 'polymer', desc: '鎖状構造で、加熱すると軟らかくなる。' },
-  { id: 'thermoset', label: '熱硬化性', group: 'polymer', desc: '立体網目構造で、加熱しても軟らかくならない。' },
 ];

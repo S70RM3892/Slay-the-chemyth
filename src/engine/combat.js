@@ -72,6 +72,15 @@ export function applyStatus(G, ref, id, amount) {
     id = 'vulnerable'; amount = 2;
     emit(G, { type: 'info', target: ref, msg: `${u.name}は沈殿しない！代わりに活性化` });
   }
+  if (id === 'precip' && ref !== 'player') {
+    // 連続行動不能を防ぐ: 沈殿でスキップした直後の1行動分は再沈殿しない。重ねがけも不可。
+    if (u.precipImmune) {
+      emit(G, { type: 'statusBlocked', target: ref, status: id, msg: `${u.name}は沈殿から再溶解したばかりで、まだ沈殿しない` });
+      return false;
+    }
+    if (u.statuses.precip) return false;
+    amount = 1;
+  }
   let v = (u.statuses[id] || 0) + amount;
   if (!SIGNED_STATUSES.includes(id)) v = Math.max(0, v);
   if (v === 0) delete u.statuses[id]; else u.statuses[id] = v;
@@ -822,9 +831,11 @@ export function stepEnemyAct(G, uid) {
   if (!e || !e.alive) return;
   if (e.statuses.precip) {
     delete e.statuses.precip;
+    e.precipImmune = true;
     emit(G, { type: 'enemySkip', target: uid, msg: `${e.name}は沈殿して動けない！` });
     return;
   }
+  delete e.precipImmune;
   if (!e.intent) return;
   const def = G.db.enemies.get(e.id);
   const mv = def?.moves?.[e.intent.moveId];
